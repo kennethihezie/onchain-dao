@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: SEE LICENSE IN LICENSE
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./IFakeNFTMarketplace.sol";
 import "./ICryptoDevsNFT.sol";
-
 
 contract CryptoDevsDAO is Ownable {
   struct Proposal {
@@ -48,9 +47,9 @@ contract CryptoDevsDAO is Ownable {
   // Create a payable constructor which initializes the contract
   // instances for FakeNFTMarketplace and CryptoDevsNFT
   // The payable allows this constructor to accept an ETH deposit when it is being deployed
-  constructor(address _nftMarketplace, address _cryptoDevsNFT) payable {
+  constructor(address _nftMarketplace, address _cryptoDevsNFT) payable Ownable(msg.sender) {
     nftMarketplace = IFakeNFTMarketplace(_nftMarketplace);
-    cryptoDevsNFT = ICryptoDevsNFT(_cryptoDevsNFT)
+    cryptoDevsNFT = ICryptoDevsNFT(_cryptoDevsNFT);
   }
 
   modifier nftHolderOnly() {
@@ -68,12 +67,9 @@ contract CryptoDevsDAO is Ownable {
   // and if the proposal has not yet been executed
   modifier inactiveProposalOnly(uint256 proposalIndex) {
     require(proposals[proposalIndex].deadline <= block.timestamp, "DEADLINE_NOT_EXCEEDED");
-    require(proposals[proposalIndex].executed == false, "PROPOSAL_ALREADY_EXECUTED");
+    require(proposals[proposalIndex].excuted == false, "PROPOSAL_ALREADY_EXECUTED");
     _;
   }
-
-
-
 
   /// @dev createProposal allows a CryptoDevsNFT holder to create a new proposal in the DAO
   /// @param _nftTokenId - the tokenID of the NFT to be purchased from FakeNFTMarketplace if this proposal passes
@@ -84,7 +80,7 @@ contract CryptoDevsDAO is Ownable {
      proposal.nftTokenId = _nftTokenId;
 
      // Set the proposal's voting deadline to be (current time + 5 minutes)
-     proposals.deadline = block.timestamp + 5 minutes;
+     proposal.deadline = block.timestamp + 5 minutes;
      numProposals++;
 
      return numProposals - 1;
@@ -100,7 +96,7 @@ contract CryptoDevsDAO is Ownable {
     
     // Calculate how many NFTs are owned by the voter
     // that haven't already been used for voting on this proposal
-    for (uint256 i = 0; i < voterNFTBalance; i++) {
+    for (uint256 i = 0; i < voterNftBalance; i++) {
         uint256 tokenId = cryptoDevsNFT.tokenOfOwnerByIndex(msg.sender, i);
         if (proposal.voters[tokenId] == false) {
             numVotes++;
@@ -128,7 +124,7 @@ contract CryptoDevsDAO is Ownable {
     if(proposal.yayVotes > proposal.nayVotes) {
         uint256 nftPrice = nftMarketplace.getPrice();
         require(address(this).balance >= nftPrice, "NOT_ENOUGH_FUNDS");
-        nftMarketplace.purchase{ value: nftPrice }(proposal.nftTokenId)
+        nftMarketplace.purchase{ value: nftPrice }(proposal.nftTokenId);
     }
 
     proposal.excuted = true;
@@ -139,7 +135,7 @@ contract CryptoDevsDAO is Ownable {
   function withdrawEther() external onlyOwner {
     uint256 amount = address(this).balance;
     require(amount > 0, "Nothing to withdraw, contract balance empty");
-    (bool sent) = payable(owner()).call{ value: amount }("");
+    (bool sent, bytes memory data) = payable(owner()).call{ value: amount }("");
     require(sent, "FAILED_TO_WITHDRAW_ETHER");
   }
 
@@ -150,7 +146,6 @@ contract CryptoDevsDAO is Ownable {
   // ETH directly from their wallet. For that, let's add these two functions:
   // The following two functions allow the contract to accept ETH deposits
   // directly from a wallet without calling a function
-  
   receive() external payable {}
 
   fallback() external payable {}  
